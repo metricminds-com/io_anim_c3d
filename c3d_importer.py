@@ -163,15 +163,41 @@ def load(operator, context, filepath="",
 
             # Create an armature matching keyframed data (if specified).
             arm_obj = None
-            bone_radius = bone_size * 0.5
+            bone_radius = bone_size * 0.5 * 100
             if create_armature:
                 final_labels = [fc_grp.name for fc_grp in action.groups]
-                arm_obj = create_armature_object(context, armature_name, 'BBONE')
+                arm_obj = create_armature_object(context, armature_name, 'STICK')
                 add_empty_armature_bones(context, arm_obj, final_labels, bone_size)
-                # Set the width of the bbones.
-                for bone in arm_obj.data.bones:
-                    bone.bbone_x = bone_radius
-                    bone.bbone_z = bone_radius
+
+                # Create a custom bone shape (sphere) with the appropriate size
+                bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 0))
+                sphere = bpy.context.object
+                sphere.name = "Bone_Sphere"
+
+                # Scale the sphere to match the desired bone size
+                sphere.scale = (bone_radius, bone_radius, bone_radius)
+                bpy.ops.object.transform_apply(scale=True)
+
+                # Move the sphere to the appropriate location for the custom bone shape
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_MASS', center='BOUNDS')
+
+                # Switch to pose mode to set the custom shape
+                bpy.context.view_layer.objects.active = arm_obj
+                bpy.ops.object.mode_set(mode='POSE')
+
+                # Assign the custom bone shape to each pose bone in the armature
+                for pbone in arm_obj.pose.bones:
+                    pbone.custom_shape = sphere
+                    pbone.bone.show_wire = False
+
+                # Switch back to object mode
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                # Hide the template sphere in the viewport and disable render visibility
+                sphere.hide_set(True)
+                sphere.hide_render = True
+                sphere.hide_viewport = True
+
                 # Set the created action as active for the armature.
                 set_action(arm_obj, action, replace=False)
 
@@ -459,3 +485,24 @@ def clean_empty_fcurves(action):
 
     for curve in empty_curves:
         action.fcurves.remove(curve)
+
+def create_hidden_sphere(name="Bone_Sphere", radius=1):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=(0, 0, 0))
+    sphere = bpy.context.object
+    sphere.name = name
+    
+    # Move the sphere to a new hidden collection
+    hidden_collection = bpy.data.collections.get("Hidden Objects")
+    if not hidden_collection:
+        hidden_collection = bpy.data.collections.new("Hidden Objects")
+        bpy.context.scene.collection.children.link(hidden_collection)
+    
+    # Unlink the sphere from the original collection and link it to the hidden collection
+    bpy.context.scene.collection.objects.unlink(sphere)
+    hidden_collection.objects.link(sphere)
+
+    # Hide the sphere in the viewport and render
+    sphere.hide_set(True)
+    sphere.hide_render = True
+    
+    return sphere
