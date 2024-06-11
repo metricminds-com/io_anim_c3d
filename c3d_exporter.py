@@ -92,6 +92,8 @@ def export_c3d(filepath, context,
     writer.set_point_labels(labels)
     # writer.set_analog_labels([])
 
+    writer.set_screen_axis(to_c3d_axis(axis_up),to_c3d_axis(axis_forward))
+
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
     # Save the C3D file
@@ -111,3 +113,8 @@ def get_unit_scale(scene):
     else:
         unit_conversion_factor = unit_scale  # Default to meters if no system is set
     return unit_conversion_factor
+
+def to_c3d_axis(axis):
+    if len(axis) == 2:
+        return axis
+    return '+' + axis
