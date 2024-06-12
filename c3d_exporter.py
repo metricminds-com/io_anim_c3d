@@ -92,7 +92,10 @@ def export_c3d(filepath, context,
     writer.set_point_labels(labels)
     # writer.set_analog_labels([])
 
-    writer.set_screen_axis(to_c3d_axis(axis_up),to_c3d_axis(axis_forward))
+    axis_up = to_c3d_axis(axis_up)
+    axis_forward = to_c3d_axis(axis_forward)
+    axis_right = find_perpendicular_axis(axis_up,axis_forward)
+    writer.set_screen_axis(axis_right,axis_up)
 
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
@@ -118,3 +121,35 @@ def to_c3d_axis(axis):
     if len(axis) == 2:
         return axis
     return '+' + axis
+
+def find_perpendicular_axis(axis1, axis2):
+    perpendicular_pairs = {
+        ('+X', '+Y'): '+Z',
+        ('+Y', '+X'): '+Z',
+        ('+X', '-Y'): '-Z',
+        ('-Y', '+X'): '-Z',
+        ('-X', '+Y'): '-Z',
+        ('+Y', '-X'): '-Z',
+        ('-X', '-Y'): '+Z',
+        ('-Y', '-X'): '+Z',
+        
+        ('+Y', '+Z'): '+X',
+        ('+Z', '+Y'): '+X',
+        ('+Y', '-Z'): '-X',
+        ('-Z', '+Y'): '-X',
+        ('-Y', '+Z'): '-X',
+        ('+Z', '-Y'): '-X',
+        ('-Y', '-Z'): '+X',
+        ('-Z', '-Y'): '+X',
+        
+        ('+Z', '+X'): '+Y',
+        ('+X', '+Z'): '+Y',
+        ('+Z', '-X'): '-Y',
+        ('-X', '+Z'): '-Y',
+        ('-Z', '+X'): '-Y',
+        ('+X', '-Z'): '-Y',
+        ('-Z', '-X'): '+Y',
+        ('-X', '-Z'): '+Y',
+    }
+    
+    return perpendicular_pairs.get((axis1, axis2), None)

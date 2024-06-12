@@ -174,9 +174,20 @@ class C3DParseDictionary:
         sys_axis_forw: Forward axis vector defining the full system convention (forward orientation on ground plane).
         Returns:       (3x3 orientation matrix for converting 3D data points, True if POINT.?_SCREEN param was parsed).
         '''
+        axis_dict = {
+            '+X': [1,0,0],
+            '-X': [-1,0,0],
+            '+Y': [0,1,0],
+            '-Y': [0,-1,0],
+            '+Z': [0,0,1],
+            '-Z': [0,0,-1],
+        }
+
         val = self.reader.get_screen_axis()
         if val:
-            axis_x, axis_y = val
+            axis_x_str, axis_y_str = val
+            axis_x = axis_dict[axis_x_str]
+            axis_y = axis_dict[axis_y_str]
             parsed_screen_param = True
         else:
             # If both X/Y_SCREEN axis can't be parsed, use default case:
@@ -187,8 +198,8 @@ class C3DParseDictionary:
         # Compute POINT:SCREEN transform
         O_data = np.identity(3)
         O_data[:, 0] = axis_x
-        O_data[:, 1] = axis_y
-        O_data[:, 2] = np.cross(axis_x, axis_y)
+        O_data[:, 1] = np.cross(axis_x, axis_y)
+        O_data[:, 2] = axis_y
 
         # Define the system's third axis as the cross product:
         O_sys = np.empty((3, 3))
