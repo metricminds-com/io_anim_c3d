@@ -151,7 +151,8 @@ def load(operator, context, filepath="",
             blen_curves_arr = generate_blend_curves(action, unique_labels, 3, 'pose.bones["%s"].location')
             blen_curves = np.array(blen_curves_arr).reshape(nlabels, 3)
 
-            residual_curves = np.array(generate_blend_curves(action, unique_labels, 1, 'pose.bones["%s"]["residual"]'))
+            residual_curves_arr = np.array(generate_blend_curves(action, unique_labels, 3, 'pose.bones["%s"].scale'))
+            residual_curves = np.array(residual_curves_arr).reshape(nlabels, 3)
 
             # Load
             read_data(cached_frames, blen_curves, residual_curves, unique_labels, point_mask, global_orient,
@@ -308,7 +309,7 @@ def read_data(frames, blen_curves, residual_curves, labels, point_mask, global_o
         # Apply masked samples.
         points = points[point_mask]
         # Determine valid samples
-        residual[index] = points[:, 3]
+        residual[index] = points[:, 3] + 1.0
         valid = points[:, 3] >= 0.0
         if max_residual > 0.0:
             valid = np.logical_and(points[:, 3] < max_residual, valid)
@@ -318,22 +319,22 @@ def read_data(frames, blen_curves, residual_curves, labels, point_mask, global_o
         point_frames[index] = points[:, :3].T
 
     # Create residual curves
-    frame_indices = np.arange(first_frame, first_frame + nframes) * conv_fac_frame_rate
     constant_enum = bpy.types.Keyframe.bl_rna.properties["interpolation"].enum_items["CONSTANT"].value
 
-    for i, fc in enumerate(residual_curves):
-        keyframe_data = []
-        previous_value = None
-        for frame_index, value in zip(frame_indices, residual[:, i]):
-            if previous_value is None or value != previous_value:
-                keyframe_data.append((frame_index, value))
-                previous_value = value
+    for i, fc_set in enumerate(residual_curves):
+        for fc in fc_set:
+            keyframe_data = []
+            previous_value = None
+            for frame_index, value in enumerate(residual[:, i]):
+                if previous_value is None or value != previous_value:
+                    keyframe_data.append((frame_index, value))
+                    previous_value = value
 
-        if keyframe_data:
-            fc.keyframe_points.add(len(keyframe_data))
-            flat_keyframe_data = [item for sublist in keyframe_data for item in sublist]
-            fc.keyframe_points.foreach_set('co', flat_keyframe_data)
-            fc.keyframe_points.foreach_set('interpolation', [constant_enum] * len(keyframe_data))
+            if keyframe_data:
+                fc.keyframe_points.add(len(keyframe_data))
+                flat_keyframe_data = [item for sublist in keyframe_data for item in sublist]
+                fc.keyframe_points.foreach_set('co', flat_keyframe_data)
+                fc.keyframe_points.foreach_set('interpolation', [constant_enum] * len(keyframe_data))
 
     # Re-orient and scale the data.
     point_frames = np.matmul(global_orient, point_frames)
