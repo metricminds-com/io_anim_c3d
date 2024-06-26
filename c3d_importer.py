@@ -151,8 +151,10 @@ def load(operator, context, filepath="",
             blen_curves_arr = generate_blend_curves(action, unique_labels, 3, 'pose.bones["%s"].location')
             blen_curves = np.array(blen_curves_arr).reshape(nlabels, 3)
 
+            residual_curves = np.array(generate_blend_curves(action, unique_labels, 1, 'pose.bones["%s"]["residual"]'))
+
             # Load
-            read_data(cached_frames, blen_curves, unique_labels, point_mask, global_orient,
+            read_data(cached_frames, blen_curves, residual_curves, unique_labels, point_mask, global_orient,
                     first_frame, nframes, conv_fac_frame_rate,
                     interpolation, max_residual,
                     perfmon)
@@ -184,10 +186,17 @@ def load(operator, context, filepath="",
 
                 collection.objects.link(arm_obj)
                 add_empty_armature_bones(context, arm_obj, final_labels, bone_size)
+
+                # Add custom properties to pose bones
+                for pose_bone in arm_obj.pose.bones:
+                    pose_bone["residual"] = 0
+
                 # Set the width of the bbones.
                 for bone in arm_obj.data.bones:
                     bone.bbone_x = bone_radius
                     bone.bbone_z = bone_radius
+                    add_driver(arm_obj, bone, 'residual', 'hide', 'residual < 0')
+
                 # Set the created action as active for the armature.
                 set_action(arm_obj, action, replace=False)
 
@@ -280,7 +289,7 @@ def read_events(operator, parser, action, conv_fac_frame_rate):
         operator.report({'WARNING'}, str(e))
 
 
-def read_data(frames, blen_curves, labels, point_mask, global_orient,
+def read_data(frames, blen_curves, residual_curves, labels, point_mask, global_orient,
               first_frame, nframes, conv_fac_frame_rate,
               interpolation, max_residual,
               perfmon):
@@ -291,6 +300,7 @@ def read_data(frames, blen_curves, labels, point_mask, global_orient,
     # Generate numpy arrays to store POINT data from each frame before creating keyframes.
     point_frames = np.zeros([nframes, 3, nlabels], dtype=np.float32)
     valid_samples = np.empty([nframes, nlabels], dtype=bool)
+    residual = np.zeros([nframes, nlabels], dtype=np.float32)
 
     ##
     # Start reading POINT blocks (and analog, but analog signals from force plates etc. are not supported).
@@ -300,6 +310,7 @@ def read_data(frames, blen_curves, labels, point_mask, global_orient,
         # Apply masked samples.
         points = points[point_mask]
         # Determine valid samples
+        residual[index] = points[:, 3]
         valid = points[:, 3] >= 0.0
         if max_residual > 0.0:
             valid = np.logical_and(points[:, 3] < max_residual, valid)
@@ -307,6 +318,24 @@ def read_data(frames, blen_curves, labels, point_mask, global_orient,
 
         # Extract position coordinates from columns 0:3.
         point_frames[index] = points[:, :3].T
+
+    # Create residual curves
+    frame_indices = np.arange(first_frame, first_frame + nframes) * conv_fac_frame_rate
+    constant_enum = bpy.types.Keyframe.bl_rna.properties["interpolation"].enum_items["CONSTANT"].value
+
+    for i, fc in enumerate(residual_curves):
+        keyframe_data = []
+        previous_value = None
+        for frame_index, value in zip(frame_indices, residual[:, i]):
+            if previous_value is None or value != previous_value:
+                keyframe_data.append((frame_index, value))
+                previous_value = value
+
+        if keyframe_data:
+            fc.keyframe_points.add(len(keyframe_data))
+            flat_keyframe_data = [item for sublist in keyframe_data for item in sublist]
+            fc.keyframe_points.foreach_set('co', flat_keyframe_data)
+            fc.keyframe_points.foreach_set('interpolation', [constant_enum] * len(keyframe_data))
 
     # Re-orient and scale the data.
     point_frames = np.matmul(global_orient, point_frames)
@@ -349,8 +378,10 @@ def read_data(frames, blen_curves, labels, point_mask, global_orient,
     if interpolation != 'BEZIER':  # Bezier is default
         for fc_set in blen_curves:
             for fc in fc_set:
-                for kf in fc.keyframe_points:
-                    kf.interpolation = interpolation
+                interpolation_enum_arr = [bpy.types.Keyframe.bl_rna.properties["interpolation"].enum_items[interpolation].value] * len(fc.keyframe_points)
+                fc.keyframe_points.foreach_set('interpolation', interpolation_enum_arr)
+                # for kf in fc.keyframe_points:
+                #     kf.interpolation = interpolation
 
     perfmon.level_down('Keyframing Done.')
 
@@ -513,3 +544,17 @@ def clean_empty_fcurves(action):
 
     for curve in empty_curves:
         action.fcurves.remove(curve)
+
+def add_driver(armature, bone, source, target, expression):
+
+    driver = bone.driver_add(target).driver
+    
+    driver.type = 'SCRIPTED'
+    
+    var = driver.variables.new()
+    var.name = 'residual'
+    var.targets[0].id_type = 'OBJECT'
+    var.targets[0].id = armature
+    var.targets[0].data_path = f'pose.bones["{bone.name}"]["{source}"]'
+    
+    driver.expression = expression
