@@ -177,6 +177,12 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
         default=True,
     ) # type: ignore
 
+    bone_shape: BoolProperty(
+        name = "Bone Shape",
+        description = "Generate sphere shape for bones",
+        default=True,
+    ) # type: ignore
+
     bone_size: FloatProperty(
         name="Marker Size", default=0.02,
         description="Define the width of each marker bone",
@@ -453,6 +459,7 @@ class C3D_PT_marker_armature(bpy.types.Panel):
 
         layout.enabled = operator.create_armature
 
+        layout.prop(operator, "bone_shape")
         layout.prop(operator, "bone_size")
         layout.prop(operator, "split_actors")
 

@@ -34,6 +34,7 @@ def load(operator, context, filepath="",
          axis_up='Y',
          global_scale=1.0,
          create_armature=True,
+         bone_shape=True,
          bone_size=0.02,
          resample_frame_rate=False,
          fake_user=True,
@@ -210,6 +211,8 @@ def load(operator, context, filepath="",
         change_mode('POSE')
         if unlabeled_armature:
             unlabeled_armature.hide_set(True)
+
+        if bone_shape: custom_bone_shape(bpy.context, bone_size)
 
         return {'FINISHED'}
 
@@ -439,6 +442,85 @@ def create_armature_object(context, name, display_type='OCTAHEDRAL'):
     arm_obj = bpy.data.objects.new(name=name, object_data=arm_data)
 
     return arm_obj
+
+def custom_bone_shape(context, bone_size):
+    # Name of the custom shape object
+    custom_shape_name = "BoneCustomShape"
+
+    # Name of the collection for custom shapes
+    custom_shape_collection_name = "CustomShapes"
+
+    # Create a new collection for custom shapes if it doesn't exist
+    if custom_shape_collection_name not in bpy.data.collections:
+        custom_shape_collection = bpy.data.collections.new(custom_shape_collection_name)
+        context.scene.collection.children.link(custom_shape_collection)
+    else:
+        custom_shape_collection = bpy.data.collections[custom_shape_collection_name]
+
+    # Create a custom shape object if it doesn't exist
+    if custom_shape_name not in bpy.data.objects:
+        mesh = bpy.data.meshes.new(custom_shape_name)
+        custom_shape = bpy.data.objects.new(custom_shape_name, mesh)
+        custom_shape_collection.objects.link(custom_shape)
+
+        # Create a simple mesh for the custom shape (e.g., a sphere)
+        context.view_layer.objects.active = custom_shape
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=bone_size * 5, segments=16, ring_count=8)
+        bpy.ops.object.mode_set(mode='OBJECT')
+    else:
+        custom_shape = bpy.data.objects[custom_shape_name]
+
+    custom_shape_scale = 0.08
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # Assign the custom shape to the bones
+    # Iterate through all objects in the scene
+    for obj in context.scene.objects:
+        # Check if the object is an armature
+        if obj.type == 'ARMATURE':
+            # Set the armature to be in object mode
+            context.view_layer.objects.active = obj
+            
+            # Iterate through all bones in the armature
+            for bone in obj.pose.bones:
+                # Change the custom shape to the sphere shape
+                bone.custom_shape = custom_shape
+                # Set the custom shape scale
+                bone.custom_shape_scale_xyz = (custom_shape_scale, custom_shape_scale, custom_shape_scale)
+                # Disable the Scale to Bone Length option
+                bone.use_custom_shape_bone_size = False
+
+    # Iterate through all objects in the scene
+    for obj in context.scene.objects:
+        # Check if the object is an armature
+        if obj.type == 'ARMATURE':
+            # Set the armature to be in object mode (important for changing properties)
+            context.view_layer.objects.active = obj
+            
+            # Iterate through all bones in the armature
+            for bone in obj.data.bones:
+                # Change the display type to 'STICK'
+                bone.bbone_segments = 1  # B-Bone segments to 1 effectively makes it a stick
+                bone.show_wire = False   # Optional: disable wireframe display if it was enabled
+
+                bone.color.palette = 'CUSTOM'
+                
+                # Set custom colors (values are RGB between 0 and 1)
+                bone.color.custom.normal = (1, 1, 1)
+                bone.color.custom.select = (1, 0.62, 0.16)
+                bone.color.custom.active = (1, 1, 0)
+
+            # Update the armature display type
+            obj.data.display_type = 'STICK'
+
+    # Hide the custom shape collection
+    for view_layer in context.scene.view_layers:
+        layer_collection = view_layer.layer_collection.children[custom_shape_collection_name]
+        layer_collection.exclude = True
+
+    bpy.ops.object.mode_set(mode='POSE')
 
 
 def change_mode(mode_state):
