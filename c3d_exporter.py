@@ -5,6 +5,15 @@ from .c3d.c3d import Writer
 from . perfmon import PerfMon
 import bpy
 
+def get_bone_name(data_path: str) -> str:
+    return data_path.split('"')[1]
+
+def get_full_bone_name(armature, fcurve : bpy.types.FCurve) -> str:
+    if armature.name == "UNLABELED":
+        return get_bone_name(fcurve.data_path)
+    else:
+        return f"{armature.name}:{get_bone_name(fcurve.data_path)}"
+
 def export_c3d(filepath, context, 
             use_manual_orientation = False,
             axis_forward='-Z',
@@ -27,17 +36,17 @@ def export_c3d(filepath, context,
     perfmon.level_up(f'Collecting labels', True)
     #Initialize a list of bone names to keep track of the order of bones
 
-    curve_names = []
+    labels = []
 
     for obj in context.scene.objects:
         if obj.type == 'ARMATURE' and obj.animation_data is not None and obj.animation_data.action is not None:
             for fcu in obj.animation_data.action.fcurves:
-                curve_names.append(fcu.data_path)
+                labels.append(get_full_bone_name(obj, fcu))
 
-    curve_names = list(dict.fromkeys(curve_names))
+    labels = list(dict.fromkeys(labels))
 
-    label_count = len(curve_names)
-    curve_names = list(curve_names)
+    label_count = len(labels)
+    labels = list(labels)
 
     perfmon.level_down(f'Collecting labels finished')
 
@@ -51,11 +60,12 @@ def export_c3d(filepath, context,
     keyframes = np.array([points.copy() for _ in range(frame_count)])
 
     # Process each object in the scene
-    for ob in context.scene.objects:
-        if ob.type != 'ARMATURE' or ob.animation_data is None or ob.animation_data.action is None:
+    for obj in context.scene.objects:
+        if obj.type != 'ARMATURE' or obj.animation_data is None or obj.animation_data.action is None:
             continue
-        for fcu in ob.animation_data.action.fcurves:
-            bone_index = curve_names.index(fcu.data_path)
+        for fcu in obj.animation_data.action.fcurves:
+            if not fcu.data_path.endswith('.location'): continue
+            bone_index = labels.index(get_full_bone_name(obj, fcu))
 
             for kp in fcu.keyframe_points:
                 frame_index = int(kp.co[0]) - frame_start
@@ -63,7 +73,7 @@ def export_c3d(filepath, context,
                     # Fill in points with keyframe value at the appropriate position
                     keyframes[frame_index][bone_index, fcu.array_index] = kp.co[1]
                     keyframes[frame_index][bone_index, 3] = 0 # Set residual
-        perfmon.step(f"Collected data from {ob.name} Armature")
+        perfmon.step(f"Collected data from {obj.name} Armature")
 
     perfmon.level_down(f'Collecting frame data finished')
 
@@ -91,7 +101,6 @@ def export_c3d(filepath, context,
 
     writer.add_frames(frames)
 
-    labels = [name.split('"')[1] for name in curve_names]
     writer.set_point_labels(labels)
     # writer.set_analog_labels([])
 
