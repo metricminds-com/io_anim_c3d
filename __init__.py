@@ -288,7 +288,7 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
             return c3d_importer.load(self, context, filepath=self.filepath, **keywords)
         
 # Exporter
-@orientation_helper(axis_forward='-Z', axis_up='Y')
+@orientation_helper(axis_forward='Z', axis_up='-Y')
 class ExportC3D(bpy.types.Operator):
     bl_idname = "export_scene.c3d"
     bl_label = "Export C3D"

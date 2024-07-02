@@ -17,7 +17,7 @@ def get_full_bone_name(armature, fcurve : bpy.types.FCurve) -> str:
 def export_c3d(filepath, context, 
             use_manual_orientation = False,
             axis_forward='-Z',
-            axis_up='Y',
+            axis_up='-Y',
             global_scale=1.0):
     
     from bpy_extras.io_utils import axis_conversion
@@ -85,14 +85,14 @@ def export_c3d(filepath, context,
 
     # Orient and scale point data
     if use_manual_orientation:
-        global_orient = axis_conversion(to_forward=axis_forward, to_up=axis_up)
-        global_orient = global_orient @ mathutils.Matrix.Scale(scale, 3)
-        # Convert orientation to a numpy array (3x3 rotation matrix).
-        global_orient = np.array(global_orient)
-
-        keyframes[..., :3] = keyframes[..., :3] @ global_orient.T
+        global_orient = axis_conversion(from_forward='-Y', from_up='Z', to_forward=axis_forward, to_up=axis_up)
     else:
-        keyframes[..., :3] *= scale
+        global_orient = axis_conversion('-Y', 'Z', '-Z', '-Y') # Mirrors default import orientation
+
+    global_orient = global_orient @ mathutils.Matrix.Scale(scale, 3)
+    # Convert orientation to a numpy array (3x3 rotation matrix).
+    global_orient = np.array(global_orient)
+    keyframes[..., :3] = keyframes[..., :3] @ global_orient.T
 
     analog = np.zeros((0, 0), dtype=np.float32)
     frames = [(keyframes[i], analog) for i in range(frame_count)]
