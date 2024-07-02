@@ -128,6 +128,9 @@ def load(operator, context, filepath="",
 
         cached_frames = list(parser.reader.read_frames(copy=True))
 
+        # Get or create custom bone shape
+        bone_shape = get_custom_bone_shape(context, bone_size)
+
         for armature_name, armature_mask in armatures.items():
 
             point_mask = np.logical_and(software_mask, armature_mask)
@@ -201,6 +204,8 @@ def load(operator, context, filepath="",
                 # Set the created action as active for the armature.
                 set_action(arm_obj, action, replace=False)
 
+                if bone_shape: apply_custom_bone_shape(arm_obj, bone_shape)
+
         perfmon.level_down("Import finished.")
 
         # Metadata
@@ -211,8 +216,6 @@ def load(operator, context, filepath="",
         change_mode('POSE')
         if unlabeled_armature:
             unlabeled_armature.hide_set(True)
-
-        if bone_shape: custom_bone_shape(bpy.context, bone_size)
 
         return {'FINISHED'}
 
@@ -443,11 +446,11 @@ def create_armature_object(context, name, display_type='OCTAHEDRAL'):
 
     return arm_obj
 
-def custom_bone_shape(context, bone_size):
-    # Name of the custom shape object
+def get_custom_bone_shape(context,bone_size):
+    ''' Retrives the custom bone shape or creates it if it does not exist
+    '''
     custom_shape_name = "BoneCustomShape"
 
-    # Name of the collection for custom shapes
     custom_shape_collection_name = "CustomShapes"
 
     # Create a new collection for custom shapes if it doesn't exist
@@ -471,56 +474,42 @@ def custom_bone_shape(context, bone_size):
     else:
         custom_shape = bpy.data.objects[custom_shape_name]
 
-    custom_shape_scale = 0.08
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-    # Assign the custom shape to the bones
-    # Iterate through all objects in the scene
-    for obj in context.scene.objects:
-        # Check if the object is an armature
-        if obj.type == 'ARMATURE':
-            # Set the armature to be in object mode
-            context.view_layer.objects.active = obj
-            
-            # Iterate through all bones in the armature
-            for bone in obj.pose.bones:
-                # Change the custom shape to the sphere shape
-                bone.custom_shape = custom_shape
-                # Set the custom shape scale
-                bone.custom_shape_scale_xyz = (custom_shape_scale, custom_shape_scale, custom_shape_scale)
-                # Disable the Scale to Bone Length option
-                bone.use_custom_shape_bone_size = False
-
-    # Iterate through all objects in the scene
-    for obj in context.scene.objects:
-        # Check if the object is an armature
-        if obj.type == 'ARMATURE':
-            # Set the armature to be in object mode (important for changing properties)
-            context.view_layer.objects.active = obj
-            
-            # Iterate through all bones in the armature
-            for bone in obj.data.bones:
-                # Change the display type to 'STICK'
-                bone.bbone_segments = 1  # B-Bone segments to 1 effectively makes it a stick
-                bone.show_wire = False   # Optional: disable wireframe display if it was enabled
-
-                bone.color.palette = 'CUSTOM'
-                
-                # Set custom colors (values are RGB between 0 and 1)
-                bone.color.custom.normal = (1, 1, 1)
-                bone.color.custom.select = (1, 0.62, 0.16)
-                bone.color.custom.active = (1, 1, 0)
-
-            # Update the armature display type
-            obj.data.display_type = 'STICK'
-
     # Hide the custom shape collection
     for view_layer in context.scene.view_layers:
         layer_collection = view_layer.layer_collection.children[custom_shape_collection_name]
         layer_collection.exclude = True
+    
+    return custom_shape
 
-    bpy.ops.object.mode_set(mode='POSE')
+def custom_bone_shape(context, bone_size):
+    custom_shape = get_custom_bone_shape(context,bone_size)
+
+    for obj in context.scene.objects:
+        if obj.type == 'ARMATURE':
+            apply_custom_bone_shape(obj,custom_shape)
+            context.view_layer.objects.active = obj # TODO: Fix bug in mm_mocap to remove this line
+
+def apply_custom_bone_shape(armature, custom_shape):
+    ''' Assign a custom shape to all bones of the armature
+    '''
+    with bpy.context.temp_override(active_object=armature, mode='OBJECT'):
+        
+        shape_scale = 0.08
+        for bone in armature.pose.bones:
+            bone.custom_shape = custom_shape
+            bone.custom_shape_scale_xyz = (shape_scale, shape_scale, shape_scale)
+            bone.use_custom_shape_bone_size = False
+        
+        for bone in armature.data.bones:
+            bone.bbone_segments = 1  # B-Bone segments to 1 effectively makes it a stick
+            bone.show_wire = False
+
+            bone.color.palette = 'CUSTOM'      
+            bone.color.custom.normal = (1, 1, 1)
+            bone.color.custom.select = (1, 0.62, 0.16)
+            bone.color.custom.active = (1, 1, 0)
+
+        armature.data.display_type = 'STICK'
 
 
 def change_mode(mode_state):
