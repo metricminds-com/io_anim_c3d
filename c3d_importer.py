@@ -213,7 +213,7 @@ def load(operator, context, filepath="",
 
         bpy.context.view_layer.update()
 
-        change_mode('POSE')
+        #change_mode('POSE')
         if unlabeled_armature:
             unlabeled_armature.hide_set(True)
 
@@ -330,6 +330,7 @@ def read_data(frames, blen_curves, residual_curves, labels, point_mask, global_o
     constant_enum = bpy.types.Keyframe.bl_rna.properties["interpolation"].enum_items["CONSTANT"].value
 
     for i, fc in enumerate(residual_curves):
+        fc.lock = True # Lock residual curves to prevent manual changes
         keyframe_data = []
         previous_value = None
         for frame_index, value in zip(frame_indices, residual[:, i]):
