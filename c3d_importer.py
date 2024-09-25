@@ -214,8 +214,8 @@ def load(operator, context, filepath="",
         bpy.context.view_layer.update()
 
         #change_mode('POSE')
-        if unlabeled_armature:
-            unlabeled_armature.hide_set(True)
+        #if unlabeled_armature:
+            #unlabeled_armature.hide_set(True)
 
         return {'FINISHED'}
 
