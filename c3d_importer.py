@@ -205,6 +205,20 @@ def load(operator, context, filepath="",
                 set_action(arm_obj, action, replace=False)
 
                 if bone_shape: apply_custom_bone_shape(arm_obj, bone_shape)
+                
+                if action:
+                    # Iterate over all the F-Curves in the action
+                    for fcurve in action.fcurves:
+                        # Iterate over each keyframe point in the F-Curve
+                        for keyframe in fcurve.keyframe_points:
+                            # Deselect the keyframe
+                            keyframe.select_control_point = False
+                            keyframe.select_left_handle = False
+                            keyframe.select_right_handle = False
+                            
+                    print("All keyframes deselected.")
+                else:
+                    print("No action found for the active armature.")
 
         perfmon.level_down("Import finished.")
 
