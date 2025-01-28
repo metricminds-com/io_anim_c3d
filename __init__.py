@@ -81,7 +81,7 @@ from bpy_extras.io_utils import ( # type: ignore
 #######################
 
 
-@orientation_helper(axis_forward='-Z', axis_up='Y')
+@orientation_helper(axis_forward='Y', axis_up='Z')
 class ImportC3D(bpy.types.Operator, ImportHelper):
     """Load a C3D file
     """
@@ -288,7 +288,7 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
             return c3d_importer.load(self, context, filepath=self.filepath, **keywords)
         
 # Exporter
-@orientation_helper(axis_forward='-Z', axis_up='-Y')
+@orientation_helper(axis_forward='Y', axis_up='Z')
 class ExportC3D(bpy.types.Operator):
     bl_idname = "export_scene.c3d"
     bl_label = "Export C3D"

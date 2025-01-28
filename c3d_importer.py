@@ -30,8 +30,8 @@ from .pyfuncs import islist
 
 def load(operator, context, filepath="",
          use_manual_orientation=False,
-         axis_forward='-Z',
-         axis_up='Y',
+         axis_forward='Y',
+         axis_up='Z',
          global_scale=1.0,
          create_armature=True,
          bone_shape=True,
@@ -97,7 +97,7 @@ def load(operator, context, filepath="",
             # Convert orientation to a numpy array (3x3 rotation matrix).
             global_orient = np.array(global_orient)
         else:
-            global_orient, parsed_screen_param = parser.axis_interpretation([0, 0, 1], [0, 1, 0])
+            global_orient, parsed_screen_param = parser.axis_interpretation([0, 1, 0], [0, 0, 1])
             global_orient *= scale  # Uniformly scale the axis.
 
             if not parsed_screen_param:
@@ -214,8 +214,8 @@ def load(operator, context, filepath="",
         bpy.context.view_layer.update()
 
         #change_mode('POSE')
-        if unlabeled_armature:
-            unlabeled_armature.hide_set(True)
+        #if unlabeled_armature:
+            #unlabeled_armature.hide_set(True)
 
         return {'FINISHED'}
 
@@ -554,7 +554,7 @@ def add_empty_armature_bones(context, arm_obj, bone_names, length=0.1):
         # Create a new bone with name.
         b = edit_bones.new(name)
         b.head = (0.0, 0.0, 0.0)
-        b.tail = (0.0, 0.0, length)
+        b.tail = (0.0, length, 0.0)
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
