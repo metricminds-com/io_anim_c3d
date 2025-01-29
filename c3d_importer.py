@@ -225,6 +225,8 @@ def load(operator, context, filepath="",
         # Metadata
         read_metadata(parser, collection)
 
+        add_filepath(filepath, collection)
+
         bpy.context.view_layer.update()
 
         #change_mode('POSE')
@@ -232,6 +234,21 @@ def load(operator, context, filepath="",
             #unlabeled_armature.hide_set(True)
 
         return {'FINISHED'}
+    
+def add_filepath(filepath, collection):
+    metadata = None
+    for child in collection.children:
+        if child.name == "Metadata":
+            metadata = child
+            break
+
+    if metadata is None:
+        print("Metadata collection not found!")
+        return
+
+    filepath_obj = bpy.data.objects.new("FILEPATH", None)
+    metadata.objects.link(filepath_obj)
+    filepath_obj["FILEPATH"] = filepath
 
 def read_metadata(parser, collection):
     metadata = bpy.data.collections.new(name="Metadata")
