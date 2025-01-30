@@ -537,7 +537,7 @@ def apply_custom_bone_shape(armature, custom_shape):
             bone.show_wire = False
 
             bone.color.palette = 'CUSTOM'      
-            bone.color.custom.normal = (1, 1, 1)
+            bone.color.custom.normal = (0.780392, 0.913726, 1)
             bone.color.custom.select = (1, 0.62, 0.16)
             bone.color.custom.active = (1, 1, 0)
 
