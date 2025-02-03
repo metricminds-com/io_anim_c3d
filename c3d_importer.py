@@ -128,8 +128,27 @@ def load(operator, context, filepath="",
 
         cached_frames = list(parser.reader.read_frames(copy=True))
 
+        # Number of frames [first, last] => +1.
+        # first_frame is the frame index to start parsing from.
+        # nframes is the number of frames to parse.
+        first_frame = parser.first_frame
+        nframes = parser.last_frame - first_frame + 1
+        perfmon.message('Parsing: %i frames...' % nframes)
+
+        ### NEW: Check if the last frame's 3D point locations are all (0,0,0)
+        if cached_frames:
+            # Each cached frame is a tuple: (frame_index, points, analog)
+            last_frame_points = cached_frames[-1][1]
+            if np.allclose(last_frame_points[:, :3], 0.0, atol=1e-6):
+                print("Last frame has all zero locations. Skipping its import.")
+                cached_frames = cached_frames[:-1]
+                if set_end_frame:
+                    bpy.context.scene.frame_end = parser.last_frame - 2
+                # Note: The scene's frame_end remains as originally set
+            nframes = cached_frames[-1][0] - first_frame+ 1
+
         # Get or create custom bone shape
-        bone_shape = get_custom_bone_shape(context, bone_size)
+        custom_bone_shape = get_custom_bone_shape(context, bone_size)
 
         for armature_name, armature_mask in armatures.items():
 
@@ -140,13 +159,6 @@ def load(operator, context, filepath="",
             nlabels = len(unique_labels)
             if nlabels == 0:
                 operator.report({'WARNING'}, 'All POINT data was culled for armature: %s' % armature_name)
-
-            # Number of frames [first, last] => +1.
-            # first_frame is the frame index to start parsing from.
-            # nframes is the number of frames to parse.
-            first_frame = parser.first_frame
-            nframes = parser.last_frame - first_frame + 1
-            perfmon.message('Parsing: %i frames...' % nframes)
 
             # 1. Create an action to hold keyframe data.
             # 2. Generate location (x,y,z) F-Curves for each label.
@@ -204,7 +216,7 @@ def load(operator, context, filepath="",
                 # Set the created action as active for the armature.
                 set_action(arm_obj, action, replace=False)
 
-                if bone_shape: apply_custom_bone_shape(arm_obj, bone_shape)
+                if bone_shape: apply_custom_bone_shape(arm_obj, custom_bone_shape)
                 
                 if action:
                     # Iterate over all the F-Curves in the action
