@@ -571,17 +571,186 @@ class C3D_PT_debug(bpy.types.Panel):
 
         layout.prop(operator, "print_file")
 
+# This operator is used to display a custom options dialog when dropping a .c3d file.
+@orientation_helper(axis_forward='Y', axis_up='Z')
+class IMPORT_OT_C3D_DropDialog(bpy.types.Operator):
+    bl_idname = "import_anim.c3d_drop_dialog"
+    bl_label = "Import C3D Options"
+
+    # File path property – the file dropped will populate this.
+    filepath: StringProperty(subtype="FILE_PATH") #type:ignore
+
+    # The following properties mirror those in your original import operator.
+    fake_user: BoolProperty(
+        name="Fake User",
+        description="Set the fake user flag for imported action sequence(s)",
+        default=False,
+    ) #type:ignore
+    include_event_markers: BoolProperty(
+        name="Include Event Markers",
+        description="Add labeled events as 'pose markers' to the action sequence",
+        default=True,
+    ) #type:ignore
+    include_empty_labels: BoolProperty(
+        name="Include Empty Labels",
+        description="Include channels for POINT labels without valid keyframes",
+        default=False,
+    ) #type:ignore
+    split_actors: BoolProperty(
+        name="Split Actors",
+        description="Creates armature for each actor or prop",
+        default=True,
+    ) #type:ignore
+    interpolation: EnumProperty(
+        name="Interpolation",
+        description="Keyframe interpolation",
+        items=(
+            ('CONSTANT', "Constant", "No interpolation"),
+            ('LINEAR', "Linear", "Linear interpolation"),
+            ('BEZIER', "Bezier", "Smooth interpolation"),
+            ('QUAD', "Quadratic", "Quadratic easing"),
+            ('CUBIC', "Cubic", "Cubic easing"),
+            ('CIRC', "Circular", "Circular easing"),
+        ),
+        default='BEZIER',
+    ) #type:ignore
+    max_residual: FloatProperty(
+        name="Max. Residual",
+        description="Ignore samples with a residual greater than this value",
+        default=0.0,
+        min=0.0,
+        max=1000000.0,
+    ) #type:ignore
+    create_armature: BoolProperty(
+        name="Create Armature",
+        description="Generate an armature to display the animated point cloud",
+        default=True,
+    ) #type:ignore
+    bone_shape: BoolProperty(
+        name="Bone Shape",
+        description="Generate sphere shape for bones",
+        default=True,
+    ) #type:ignore
+    bone_size: FloatProperty(
+        name="Marker Size",
+        description="Define the width of each marker bone",
+        default=0.02,
+        min=0.001,
+        max=10.0,
+    ) #type:ignore
+    global_scale: FloatProperty(
+        name="Scale",
+        description="Scaling factor applied to geometric data",
+        default=1.0,
+        min=0.001,
+        max=1000.0,
+    ) #type:ignore
+    use_manual_orientation: BoolProperty(
+        name="Manual Orientation",
+        description="Specify orientation manually rather than using file data",
+        default=False,
+    ) #type:ignore
+    print_file: BoolProperty(
+        name="Print Metadata",
+        description="Print file metadata to console",
+        default=False,
+    ) #type:ignore
+    resample_frame_rate: BoolProperty(
+        name="Resample Frame Rate",
+        description="Adjust keyframes to match the scene’s sample rate",
+        default=False,
+    ) #type:ignore
+    set_frame_rate: BoolProperty(
+        name="Set Frame Rate",
+        description="Set the animation frame rate",
+        default=True,
+    ) #type:ignore
+    set_end_frame: BoolProperty(
+        name="Set End Frame",
+        description="Set the animation timeline end frame",
+        default=True,
+    ) #type:ignore
+    set_playback_mode: BoolProperty(
+        name="Set Playback Sync Mode",
+        description="Set the animation playback mode to Frame Drop",
+        default=True,
+    ) #type:ignore
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+        col.prop(self, "fake_user")
+        col.prop(self, "include_event_markers")
+        col.prop(self, "include_empty_labels")
+        col.prop(self, "interpolation")
+        col.prop(self, "max_residual")
+
+        box = col.box()
+        box.prop(self, "create_armature")
+        if self.create_armature:
+            box.prop(self, "bone_shape")
+            box.prop(self, "bone_size")
+            box.prop(self, "split_actors")
+        
+        layout.prop(self, "global_scale")
+        layout.prop(self, "use_manual_orientation")
+        if self.use_manual_orientation:
+            layout.prop(self, "axis_forward")
+            layout.prop(self, "axis_up")
+
+        header, body = layout.panel("group_framerate", default_closed=True)
+        header.label(text="Frame Rate")
+        if body:
+            body.prop(self, "resample_frame_rate")
+            body.prop(self, "set_frame_rate")
+            body.prop(self, "set_end_frame")
+            body.prop(self, "set_playback_mode")
+
+        header, body = layout.panel("group_console", default_closed=True)
+        header.label(text="Console")
+        if body:
+            body.prop(self, "print_file")
+
+        
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+    def execute(self, context):
+        # Call the actual import operator, passing these dialog settings.
+        # The original operator 'import_anim.c3d' is expected to accept these properties.
+        return bpy.ops.import_anim.c3d(
+            'EXEC_DEFAULT',
+            filepath=self.filepath,
+            fake_user=self.fake_user,
+            include_event_markers=self.include_event_markers,
+            include_empty_labels=self.include_empty_labels,
+            split_actors=self.split_actors,
+            interpolation=self.interpolation,
+            max_residual=self.max_residual,
+            create_armature=self.create_armature,
+            bone_shape=self.bone_shape,
+            bone_size=self.bone_size,
+            global_scale=self.global_scale,
+            use_manual_orientation=self.use_manual_orientation,
+            print_file=self.print_file,
+            resample_frame_rate=self.resample_frame_rate,
+            set_frame_rate=self.set_frame_rate,
+            set_end_frame=self.set_end_frame,
+            set_playback_mode=self.set_playback_mode,
+        )
+
+
+# Update the drag-and-drop file handler to use the new operator.
 class WM_FH_C3D_PT_drag_and_drop(bpy.types.FileHandler):
     bl_idname = "WM_FH_drag_and_drop"
     bl_label = "Import C3D"
-    bl_import_operator = "import_anim.c3d"
+    bl_import_operator = "import_anim.c3d_drop_dialog"
     bl_file_extensions = ".c3d"
 
     @classmethod
     def poll_drop(cls, context):
-        if context.space_data.type == "VIEW_3D":
-            return True
-
+        return context.space_data.type == "VIEW_3D"
 
 #######################
 # Register Menu Items
@@ -610,6 +779,7 @@ classes = (
     ExportC3D,
     C3D_PT_export_transform,
     C3D_PT_export_transform_manual_orientation,
+    IMPORT_OT_C3D_DropDialog,
     WM_FH_C3D_PT_drag_and_drop,
 )
 
