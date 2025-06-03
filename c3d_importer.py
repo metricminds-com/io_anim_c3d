@@ -238,6 +238,7 @@ def load(operator, context, filepath="",
         read_metadata(parser, collection)
 
         add_filepath(filepath, collection)
+        if set_frame_rate: add_framerate(bpy.context.scene.render.fps, collection)
 
         bpy.context.view_layer.update()
 
@@ -262,12 +263,27 @@ def add_filepath(filepath, collection):
     metadata.objects.link(filepath_obj)
     filepath_obj["FILEPATH"] = filepath
 
+def add_framerate(framerate, collection):
+    metadata = None
+    for child in collection.children:
+        if child.name == "Metadata":
+            metadata = child
+            break
+
+    if metadata is None:
+        print("Metadata collection not found!")
+        return
+
+    framerate_obj = bpy.data.objects.new("FRAMERATE", None)
+    metadata.objects.link(framerate_obj)
+    framerate_obj["FRAMERATE"] = framerate
+
 def read_metadata(parser, collection):
     metadata = bpy.data.collections.new(name="Metadata")
     collection.children.link(metadata)
 
     # Timecode
-    group = parser.get_group("TIMECODE");
+    group = parser.get_group("TIMECODE")
     if group is not None:
         timecode = bpy.data.objects.new("TIMECODE", None)
         metadata.objects.link(timecode)
