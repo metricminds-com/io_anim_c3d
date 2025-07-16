@@ -246,6 +246,14 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
     def draw(self, context):
         pass
 
+    def invoke(self, context, event):
+        # Redraw the 3D View to prevent potential crashes from other addons
+        for window in context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+        return ImportHelper.invoke(self, context, event)
+
     def execute(self, context):
         keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files"))
 
@@ -295,6 +303,9 @@ class ExportC3D(bpy.types.Operator):
 
     filepath: bpy.props.StringProperty(subtype="FILE_PATH") # type: ignore
 
+    filename_ext = ".c3d"
+    filter_glob: StringProperty(default='*' + filename_ext, options={'HIDDEN'})  # type: ignore
+
     # -----
     # Transformation settings (included to allow manual modification of spatial data in the loading process).
     # -----
@@ -315,13 +326,26 @@ class ExportC3D(bpy.types.Operator):
         pass
 
     def execute(self, context):
-        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files"))
+        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files", "filename_ext"))
 
         from . import c3d_exporter
         c3d_exporter.export_c3d(self.filepath, context, **keywords)
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        import os
+        if bpy.data.filepath:
+            default_path = os.path.splitext(bpy.data.filepath)[0] + self.filename_ext
+        else:
+            default_path = "untitled" + self.filename_ext
+        self.filepath = default_path
+        
+        # Redraw the 3D View to prevent potential crashes from other addons
+        for window in context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -714,6 +738,11 @@ class IMPORT_OT_C3D_DropDialog(bpy.types.Operator):
         
 
     def invoke(self, context, event):
+        # Redraw the 3D View to prevent potential crashes from other addons
+        for window in context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):

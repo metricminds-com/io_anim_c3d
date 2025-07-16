@@ -113,7 +113,7 @@ def export_c3d(filepath, context,
 
     # Save the C3D file
     with open(filepath, 'w+b') as f:
-        writer.write(f)
+        writer.write(f, write_analog=False)
 
     perfmon.level_down("Export finished.")
 
