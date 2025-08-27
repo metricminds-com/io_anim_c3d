@@ -14,7 +14,10 @@ def get_full_bone_name(armature, fcurve : bpy.types.FCurve) -> str:
     else:
         return f"{armature.name}:{get_bone_name(fcurve.data_path)}"
 
+# MODIFIED: Added 'export_scope' parameter
 def export_c3d(filepath, context, 
+            export_scope='ALL',
+            export_timecode=True,
             use_manual_orientation = False,
             axis_forward='-Y',
             axis_up='Z',
@@ -32,24 +35,35 @@ def export_c3d(filepath, context,
     frame_rate = scene.render.fps
 
     writer = Writer(frame_rate,0)
+    
+    # --- NEW: Determine which objects to export based on the scope ---
+    objects_to_export = []
+    if export_scope == 'ALL':
+        objects_to_export = scene.objects
+    elif export_scope == 'SELECTED':
+        objects_to_export = context.selected_objects
+    # ----------------------------------------------------------------
 
     perfmon.level_up(f'Collecting labels', True)
     #Initialize a list of bone names to keep track of the order of bones
-
     labels = []
 
-    for obj in context.scene.objects:
+    # MODIFIED: Use the filtered 'objects_to_export' list
+    for obj in objects_to_export:
         if obj.type == 'ARMATURE' and obj.animation_data is not None and obj.animation_data.action is not None:
             for fcu in obj.animation_data.action.fcurves:
                 labels.append(get_full_bone_name(obj, fcu))
 
-    labels = list(dict.fromkeys(labels))
+    if not labels:
+        print("Export C3D: No valid armatures found for export. Aborting.")
+        perfmon.level_down("Export finished with no data.")
+        return {'CANCELLED'}
 
+    labels = list(dict.fromkeys(labels))
     label_count = len(labels)
     labels = list(labels)
 
     perfmon.level_down(f'Collecting labels finished')
-
     perfmon.level_up(f'Collecting frame data', True)
 
     # Create frames data structure and fill it with default values
@@ -60,12 +74,17 @@ def export_c3d(filepath, context,
     keyframes = np.array([points.copy() for _ in range(frame_count)])
 
     # Process each object in the scene
-    for obj in context.scene.objects:
+    # MODIFIED: Use the filtered 'objects_to_export' list
+    for obj in objects_to_export:
         if obj.type != 'ARMATURE' or obj.animation_data is None or obj.animation_data.action is None:
             continue
         for fcu in obj.animation_data.action.fcurves:
             if not fcu.data_path.endswith('.location'): continue
-            bone_index = labels.index(get_full_bone_name(obj, fcu))
+            
+            full_bone_name = get_full_bone_name(obj, fcu)
+            if full_bone_name not in labels: continue # Ensure bone belongs to the collected labels
+            
+            bone_index = labels.index(full_bone_name)
 
             for kp in fcu.keyframe_points:
                 frame_index = int(kp.co[0]) - frame_start
@@ -76,7 +95,6 @@ def export_c3d(filepath, context,
         perfmon.step(f"Collected data from {obj.name} Armature")
 
     perfmon.level_down(f'Collecting frame data finished')
-
     perfmon.level_up(f'Applying transformation', True)
 
     # Scale and orientation
@@ -106,7 +124,8 @@ def export_c3d(filepath, context,
 
     perfmon.level_up(f'Write metadata', True)
 
-    write_metadata(writer)
+    # This function call handles writing TIMECODE and MANUFACTURER info
+    write_metadata(writer, export_timecode=export_timecode)
     perfmon.level_down(f'Done writing metadata')
 
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -116,21 +135,24 @@ def export_c3d(filepath, context,
         writer.write(f, write_analog=False)
 
     perfmon.level_down("Export finished.")
+    return {'FINISHED'}
 
 
-def write_metadata(writer, collection_name="Metadata"):
+def write_metadata(writer, collection_name="Metadata", export_timecode=True):
     # Find the Metadata collection
-    metadata_collection = None
-    for collection in bpy.data.collections:
-        if collection.name == collection_name:
-            metadata_collection = collection
-            break
+    metadata_collection = bpy.data.collections.get(collection_name)
 
     if metadata_collection is None:
-        print(f"Collection '{collection_name}' not found.")
+        print(f"Info: Metadata collection '{collection_name}' not found. Skipping metadata export.")
+        # Still write manufacturer info even if metadata collection isn't there
+        write_manufacturer(writer)
         return
     
     write_manufacturer(writer)
+
+    if not export_timecode:
+        return
+    # This function is responsible for exporting the TIMECODE data
     write_timecode(writer, metadata_collection)
 
 def write_manufacturer(writer):
@@ -143,60 +165,50 @@ def write_manufacturer(writer):
 
 def write_timecode(writer, metadata_collection):
     # Find the timecode object in the Metadata collection
-    timecode_object = None
-    for obj in metadata_collection.objects:
-        if obj.name == "TIMECODE":
-            timecode_object = obj
-            break
+    timecode_object = metadata_collection.objects.get("TIMECODE")
 
     if timecode_object is None:
-        print("TIMECODE object not found in the Metadata collection.")
+        print("Info: TIMECODE object not found in the Metadata collection. Skipping timecode export.")
         return
 
+    print("Exporting TIMECODE metadata...")
     group = writer.get_create("TIMECODE")
 
-     # Write DROP_FRAMES as a signed 8-bit integer
-    group.add('DROP_FRAMES', 'Does the timecode drop frames?', 1, '<b', int(timecode_object["DROP_FRAMES"]))
+    # Write DROP_FRAMES as a signed 8-bit integer
+    group.add('DROP_FRAMES', 'Does the timecode drop frames?', 1, '<b', int(timecode_object.get("DROP_FRAMES", 0)))
 
     # Write FIELD_NUMBERS as an array of signed 16-bit integers
-    field_numbers = timecode_object["FIELD_NUMBERS"]
-    field_numbers = np.array(field_numbers, dtype=np.int16)
-    # Ensure the array is correctly formatted with the required dimensions
-    field_numbers = field_numbers.reshape(-1, 1)
+    field_numbers = np.array(timecode_object.get("FIELD_NUMBERS", []), dtype=np.int16).reshape(-1, 1)
     group.add_array('FIELD_NUMBERS', 'Field numbers', field_numbers)
 
     # Write OFFSETS as an array of signed 16-bit integers
-    offsets = timecode_object["OFFSETS"]
-    offsets = np.array(offsets, dtype=np.int16)
-    offsets = offsets.reshape(-1, 1)
+    offsets = np.array(timecode_object.get("OFFSETS", []), dtype=np.int16).reshape(-1, 1)
     group.add_array('OFFSETS', 'Offsets', offsets)
 
     # Write STANDARD as a string
-    group.add_str('STANDARD', 'Timecode standard', timecode_object["STANDARD"])
+    group.add_str('STANDARD', 'Timecode standard', timecode_object.get("STANDARD", "SMPTE"))
 
     # Write SUBFRAMESPERFRAME as an array of signed 16-bit integers
-    subframesperframe = timecode_object["SUBFRAMESPERFRAME"]
-    subframesperframe = np.array(subframesperframe, dtype=np.int16)
-    subframesperframe = subframesperframe.reshape(-1, 1)
-    group.add_array('SUBFRAMESPERFRAME', 'Subframes per frame', subframesperframe)
+    subframes = np.array(timecode_object.get("SUBFRAMESPERFRAME", []), dtype=np.int16).reshape(-1, 1)
+    group.add_array('SUBFRAMESPERFRAME', 'Subframes per frame', subframes)
 
     # Write TIMECODES as an array of signed 16-bit integers
-    timecodes = timecode_object["TIMECODES"]
-    timecodes = list(map(int, timecodes.split(':')))
-    timecodes = np.array(timecodes, dtype=np.int16)
-    timecodes = timecodes.reshape(-1, 1)
+    timecodes_str = timecode_object.get("TIMECODES", "0:0:0:0")
+    timecodes_list = list(map(int, timecodes_str.split(':')))
+    timecodes = np.array(timecodes_list, dtype=np.int16).reshape(-1, 1)
     group.add_array('TIMECODES', 'Timecodes', timecodes)
 
     # Write USED as a signed 16-bit integer
-    group.add('USED', 'Is the timecode used?', 2, '<h', int(timecode_object["USED"]))
+    group.add('USED', 'Is the timecode used?', 2, '<h', int(timecode_object.get("USED", 0)))
 
 def get_unit_scale(scene):
     # Determine the unit scale to convert to meters
-    unit_scale = scene.unit_settings.scale_length
-    if scene.unit_settings.system == 'METRIC':
-        unit_conversion_factor = unit_scale
-    elif scene.unit_settings.system == 'IMPERIAL':
-        unit_conversion_factor = 25.4 * 12 * unit_scale / 1000  # Convert feet to meters
+    unit_settings = scene.unit_settings
+    if unit_settings.system == 'METRIC':
+        return unit_settings.scale_length
+    elif unit_settings.system == 'IMPERIAL':
+        # 1 foot = 0.3048 meters. The scale_length is in feet for imperial.
+        return unit_settings.scale_length * 0.3048
     else:
-        unit_conversion_factor = unit_scale  # Default to meters if no system is set
-    return unit_conversion_factor
+        # Default to Blender Units (meters)
+        return unit_settings.scale_length

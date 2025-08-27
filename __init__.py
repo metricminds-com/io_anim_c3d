@@ -306,6 +306,22 @@ class ExportC3D(bpy.types.Operator):
     filename_ext = ".c3d"
     filter_glob: StringProperty(default='*' + filename_ext, options={'HIDDEN'})  # type: ignore
 
+    export_scope: EnumProperty(
+        name="Scope",
+        description="Choose which armatures to export.",
+        items=[
+            ('ALL', "All Armatures", "Export all armatures in the active scene"),
+            ('SELECTED', "Selected Armatures", "Export only the selected armatures"),
+        ],
+        default='ALL',
+    ) # type: ignore
+
+    export_timecode: BoolProperty(
+        name="Export Timecode",
+        description="Export the TIMECODE metadata group if a 'TIMECODE' object exists",
+        default=True,
+    ) # type: ignore    
+
     # -----
     # Transformation settings (included to allow manual modification of spatial data in the loading process).
     # -----
@@ -366,6 +382,30 @@ def unregister():
 ######################
 
 ## Export
+
+class C3D_PT_export_main_settings(bpy.types.Panel):
+    bl_space_type = 'FILE_BROWSER'
+    bl_region_type = 'TOOL_PROPS'
+    bl_label = "Main"
+    bl_parent_id = "FILE_PT_operator"
+
+    @classmethod
+    def poll(cls, context):
+        sfile = context.space_data
+        operator = sfile.active_operator
+        return operator.bl_idname == "EXPORT_SCENE_OT_c3d"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        sfile = context.space_data
+        operator = sfile.active_operator
+
+        # This line draws the dropdown menu in the UI
+        layout.prop(operator, "export_scope")
+        layout.prop(operator, "export_timecode")
 
 class C3D_PT_export_transform(bpy.types.Panel):
     bl_space_type = 'FILE_BROWSER'
@@ -806,6 +846,7 @@ classes = (
     C3D_PT_import_frame_rate,
     C3D_PT_debug,
     ExportC3D,
+    C3D_PT_export_main_settings,
     C3D_PT_export_transform,
     C3D_PT_export_transform_manual_orientation,
     IMPORT_OT_C3D_DropDialog,
