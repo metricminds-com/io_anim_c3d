@@ -251,7 +251,7 @@ def load(operator, context, filepath="",
 def add_filepath(filepath, collection):
     metadata = None
     for child in collection.children:
-        if child.name == "Metadata":
+        if "Metadata" in child.name:
             metadata = child
             break
 
@@ -266,7 +266,7 @@ def add_filepath(filepath, collection):
 def add_framerate(framerate, collection):
     metadata = None
     for child in collection.children:
-        if child.name == "Metadata":
+        if "Metadata" in child.name:
             metadata = child
             break
 
