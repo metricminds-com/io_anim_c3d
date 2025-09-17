@@ -72,7 +72,7 @@ from bpy.props import ( # type: ignore
 )
 from bpy_extras.io_utils import ( # type: ignore
     ImportHelper,
-    # ExportHelper,
+    ExportHelper,
     orientation_helper,
 )
 
@@ -102,6 +102,20 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
     files: CollectionProperty(
         name="File Path",
         type=bpy.types.OperatorFileListElement,
+    ) # type: ignore
+
+    filter_mode: EnumProperty(
+        name="Filter Mode",
+        items=[('FILES', "Files", "Show only files"),
+               ('DIRS', "Directories", "Show only directories")],
+        default='FILES',
+    ) # type: ignore
+
+    direction: EnumProperty(
+        name="Direction",
+        items=[('ASCEND', "Ascending", "Sort in ascending order"),
+               ('DESCEND', "Descending", "Sort in descending order")],
+        default='ASCEND',
     ) # type: ignore
 
     # -----
@@ -255,7 +269,7 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
         return ImportHelper.invoke(self, context, event)
 
     def execute(self, context):
-        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files"))
+        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files", "filter_mode", "direction"))
 
         from . import c3d_importer
         import os
@@ -297,7 +311,7 @@ class ImportC3D(bpy.types.Operator, ImportHelper):
         
 # Exporter
 @orientation_helper(axis_forward='Y', axis_up='Z')
-class ExportC3D(bpy.types.Operator):
+class ExportC3D(bpy.types.Operator, ExportHelper):
     bl_idname = "export_scene.c3d"
     bl_label = "Export C3D"
 
@@ -342,28 +356,11 @@ class ExportC3D(bpy.types.Operator):
         pass
 
     def execute(self, context):
-        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files", "filename_ext"))
+        keywords = self.as_keywords(ignore=("filter_glob", "directory", "ui_tab", "filepath", "files", "filename_ext", "check_existing"))
 
         from . import c3d_exporter
         c3d_exporter.export_c3d(self.filepath, context, **keywords)
         return {'FINISHED'}
-
-    def invoke(self, context, event):
-        import os
-        if bpy.data.filepath:
-            default_path = os.path.splitext(bpy.data.filepath)[0] + self.filename_ext
-        else:
-            default_path = "untitled" + self.filename_ext
-        self.filepath = default_path
-        
-        # Redraw the 3D View to prevent potential crashes from other addons
-        for window in context.window_manager.windows:
-            for area in window.screen.areas:
-                if area.type == 'VIEW_3D':
-                    area.tag_redraw()
-
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
 
 def menu_func_export(self, context):
     self.layout.operator(ExportC3D.bl_idname, text="C3D (.c3d)")
