@@ -21,6 +21,12 @@
 # pep8 compliancy:
 #   flake8 --ignore E402,F821,F722 .\__init__.py
 
+
+import warnings
+warnings.filterwarnings("ignore", message=".*reached end of file.*")
+warnings.filterwarnings("ignore", message="No analog data found in file.")
+warnings.filterwarnings("ignore", message="missing parameter .*")
+
 bl_info = {
     "name": "C3D format",
     "author": "Mattias Fredriksson",
