@@ -26,6 +26,7 @@ import bpy
 import os
 import numpy as np
 from .pyfuncs import islist
+from . import compatibility
 
 
 def load(operator, context, filepath="",
@@ -177,11 +178,13 @@ def load(operator, context, filepath="",
 
             # Remove labels with no valid keyframes.
             if not include_empty_labels:
-                clean_empty_fcurves(action)
+                # clean_empty_fcurves(action)
+                pass # DEBUG: Keep empty curves to verify creation
             # Since we inserted our keyframes in 'FAST' mode, its best to update the fcurves now.
-            for fc in action.fcurves:
+            fcurves = compatibility.get_fcurves(action)
+            for fc in fcurves:
                 fc.update()
-            if action.fcurves == 0:
+            if len(fcurves) == 0:
                 remove_action(action)
                 # All samples were either invalid or was previously culled in regard to the channel label.
                 operator.report({'WARNING'}, 'No valid POINT data in file: %s' % filepath)
@@ -195,7 +198,8 @@ def load(operator, context, filepath="",
             arm_obj = None
             bone_radius = bone_size * 0.5
             if create_armature:
-                final_labels = [fc_grp.name for fc_grp in action.groups]
+                groups = compatibility.get_groups(action)
+                final_labels = [fc_grp.name for fc_grp in groups]
                 arm_obj = create_armature_object(context, armature_name, 'BBONE')
                 if armature_name == "UNLABELED":
                     unlabeled_armature = arm_obj
@@ -220,7 +224,7 @@ def load(operator, context, filepath="",
                 
                 if action:
                     # Iterate over all the F-Curves in the action
-                    for fcurve in action.fcurves:
+                    for fcurve in compatibility.get_fcurves(action):
                         # Iterate over each keyframe point in the F-Curve
                         for keyframe in fcurve.keyframe_points:
                             # Deselect the keyframe
@@ -488,6 +492,15 @@ def set_action(object, action, replace=True):
         object.animation_data_create()
     if replace or not object.animation_data.action:
         object.animation_data.action = action
+        
+        # Blender 5.0+ Slot Assignment
+        if compatibility.is_blender_5_or_newer() and len(action.slots) > 0:
+            try:
+                # Assign the first slot to the object's animation data
+                object.animation_data.action_slot = action.slots[0]
+                print(f"[DEBUG] Assigned action_slot: {object.animation_data.action_slot.name}")
+            except Exception as e:
+                print(f"[ERROR] Failed to assign action_slot: {e}")
 
 
 def create_armature_object(context, name, display_type='OCTAHEDRAL'):
@@ -650,11 +663,11 @@ def generate_blend_curves(action, labels, grp_channel_count, fc_data_path_str):
     # Generate channels for each label to hold location information.
     if '%s' not in fc_data_path_str:
         # No format operator found in the data_path_str used to define F-curves.
-        blen_curves = [action.fcurves.new(fc_data_path_str, index=i, action_group=label)
+        blen_curves = [compatibility.create_fcurve(action, fc_data_path_str, index=i, group=label)
                        for label in labels for i in range(grp_channel_count)]
     else:
         # Format operator found, replace it with label associated with the created F-Curve.
-        blen_curves = [action.fcurves.new(fc_data_path_str % label, index=i, action_group=label)
+        blen_curves = [compatibility.create_fcurve(action, fc_data_path_str % label, index=i, group=label)
                        for label in labels for i in range(grp_channel_count)]
     return blen_curves
 
@@ -669,12 +682,13 @@ def clean_empty_fcurves(action):
 
     '''
     empty_curves = []
-    for curve in action.fcurves:
+    fcurves = compatibility.get_fcurves(action)
+    for curve in fcurves:
         if len(curve.keyframe_points) == 0:
             empty_curves.append(curve)
 
     for curve in empty_curves:
-        action.fcurves.remove(curve)
+        compatibility.remove_fcurve(action, curve)
 
 def add_driver(armature, bone, source, target, expression):
 
