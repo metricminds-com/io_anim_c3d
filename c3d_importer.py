@@ -178,8 +178,7 @@ def load(operator, context, filepath="",
 
             # Remove labels with no valid keyframes.
             if not include_empty_labels:
-                # clean_empty_fcurves(action)
-                pass # DEBUG: Keep empty curves to verify creation
+                clean_empty_fcurves(action)
             # Since we inserted our keyframes in 'FAST' mode, its best to update the fcurves now.
             fcurves = compatibility.get_fcurves(action)
             for fc in fcurves:
@@ -215,7 +214,12 @@ def load(operator, context, filepath="",
                 for bone in arm_obj.data.bones:
                     bone.bbone_x = bone_radius
                     bone.bbone_z = bone_radius
-                    add_driver(arm_obj, bone, 'residual', 'hide', 'residual < 0')
+                    
+                    driver_target = bone
+                    if compatibility.is_blender_5_or_newer():
+                        driver_target = arm_obj.pose.bones[bone.name]
+                        
+                    add_driver(arm_obj, driver_target, 'residual', 'hide', 'residual < 0')
 
                 # Set the created action as active for the armature.
                 set_action(arm_obj, action, replace=False)
