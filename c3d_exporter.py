@@ -4,6 +4,7 @@ import numpy as np
 from .c3d.c3d import Writer
 from . perfmon import PerfMon
 import bpy
+from . import compatibility
 
 def get_bone_name(data_path: str) -> str:
     return data_path.split('"')[1]
@@ -51,7 +52,7 @@ def export_c3d(filepath, context,
     # MODIFIED: Use the filtered 'objects_to_export' list
     for obj in objects_to_export:
         if obj.type == 'ARMATURE' and obj.animation_data is not None and obj.animation_data.action is not None:
-            for fcu in obj.animation_data.action.fcurves:
+            for fcu in compatibility.get_fcurves(obj.animation_data.action):
                 labels.append(get_full_bone_name(obj, fcu))
 
     if not labels:
@@ -78,7 +79,7 @@ def export_c3d(filepath, context,
     for obj in objects_to_export:
         if obj.type != 'ARMATURE' or obj.animation_data is None or obj.animation_data.action is None:
             continue
-        for fcu in obj.animation_data.action.fcurves:
+        for fcu in compatibility.get_fcurves(obj.animation_data.action):
             if not fcu.data_path.endswith('.location'): continue
             
             full_bone_name = get_full_bone_name(obj, fcu)
@@ -170,7 +171,7 @@ def write_timecode(writer, metadata_collection):
     if timecode_object is None:
         print("Info: TIMECODE object not found in the Metadata collection. Skipping timecode export.")
         return
-
+    
     print("Exporting TIMECODE metadata...")
     group = writer.get_create("TIMECODE")
 
