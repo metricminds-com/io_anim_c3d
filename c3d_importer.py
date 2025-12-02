@@ -502,9 +502,9 @@ def set_action(object, action, replace=True):
             try:
                 # Assign the first slot to the object's animation data
                 object.animation_data.action_slot = action.slots[0]
-                print(f"[DEBUG] Assigned action_slot: {object.animation_data.action_slot.name}")
-            except Exception as e:
-                print(f"[ERROR] Failed to assign action_slot: {e}")
+                # print(f"[DEBUG] Assigned action_slot: {object.animation_data.action_slot.name}")
+            except Exception as e:{}
+                # print(f"[ERROR] Failed to assign action_slot: {e}")
 
 
 def create_armature_object(context, name, display_type='OCTAHEDRAL'):
