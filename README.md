@@ -1,11 +1,11 @@
 # io_anim_c3d
 Blender add-on for importing and exporting .c3d motion capture files.
 
-This is the [metric minds](https://www.metricminds.com) fork of
+This is the [metricminds](https://www.metricminds.com) fork of
 [io_anim_c3d](https://github.com/MattiasFredriksson/io_anim_c3d) by
 **Mattias Fredriksson**, who authored the original importer and the
 underlying [py-c3d](https://github.com/MattiasFredriksson/py-c3d) parser -
-all credit for the foundation goes to him. We use this add-on daily in our
+all credit for the foundation goes to him. We use this add-on in our
 motion capture pipeline and maintain the fork on the `metricminds` branch
 (the `main` branch mirrors the upstream repository).
 
