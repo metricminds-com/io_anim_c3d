@@ -643,6 +643,15 @@ class C3D_PT_debug(bpy.types.Panel):
 class IMPORT_OT_C3D_DropDialog(bpy.types.Operator):
     bl_idname = "import_anim.c3d_drop_dialog"
     bl_label = "Import C3D Options"
+    # Drag-and-drop runs THIS operator, which calls import_anim.c3d as a
+    # nested bpy.ops call. Nested operators don't push their own undo step -
+    # only the top-level invocation does, and only if it carries 'UNDO'. The
+    # inner operator's 'UNDO' is therefore dead on the drop path, so without
+    # this flag the whole drag-drop import records no undo step (the next
+    # undoable op's Ctrl+Z rolls back past the import). REGISTER is
+    # deliberately omitted: the redo panel would re-run execute and
+    # re-import the file, duplicating the data.
+    bl_options = {'UNDO'}
 
     # File path property – the file dropped will populate this.
     filepath: StringProperty(subtype="FILE_PATH") #type:ignore
